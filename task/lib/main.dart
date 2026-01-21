@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'quiz_screen.dart'; // 次に作成するファイルをインポート
+import 'quiz_screen.dart'; 
+import 'hundred_char_screen.dart';
 
 void main() {
   runApp(const QuizKnockApp());
@@ -59,6 +60,20 @@ class HomeScreen extends StatelessWidget {
               },
               child: const Text('クイズを開始する', style: TextStyle(fontSize: 20, color: Colors.white)),
             ),
+            // main.dart の Column の中に追加してください
+ElevatedButton(
+  style: ElevatedButton.styleFrom(
+    backgroundColor: Colors.blueGrey, // モードごとに色を変えると分かりやすいです
+    padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 20),
+  ),
+  onPressed: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const HundredCharScreen()),
+    );
+  },
+  child: const Text('100文字クイズを開始', style: TextStyle(fontSize: 20, color: Colors.white)),
+),
           ],
         ),
       ),

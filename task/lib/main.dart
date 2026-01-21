@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'answer_page.dart'; // 作成したファイルをインポート
+import 'quiz_screen.dart'; // 次に作成するファイルをインポート
 
 void main() {
   runApp(const QuizKnockApp());
@@ -11,62 +11,55 @@ class QuizKnockApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      debugShowCheckedModeBanner: false, // 右上のデバッグラベルを非表示
-      title: '今日の一問 Mock',
+      title: 'QK Quiz App',
       theme: ThemeData(
-        primaryColor: const Color(0xFF8B0000),
-        scaffoldBackgroundColor: Colors.white,
+        primarySwatch: Colors.red,
+        scaffoldBackgroundColor: Colors.black, // クールな黒背景
       ),
-      home: const QuestionPage(),
+      home: const HomeScreen(),
     );
   }
 }
 
-class QuestionPage extends StatelessWidget {
-  const QuestionPage({super.key});
+class HomeScreen extends StatelessWidget {
+  const HomeScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('今日の一問', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-        backgroundColor: const Color(0xFF8B0000),
-        centerTitle: true,
-      ),
       body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text(
-                '【Q】',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF8B0000)),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text(
+              'QUIZKNOCK',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 40,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 4,
               ),
-              const SizedBox(height: 20),
-              const Text(
-                '日本で一番高い山は富士山ですが、\n二番目に高い山は何でしょう？',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 20, height: 1.5),
+            ),
+            const Text(
+              'MOCK',
+              style: TextStyle(color: Colors.red, fontSize: 24, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 50),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 20),
               ),
-              const SizedBox(height: 50),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF8B0000),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
-                ),
-                onPressed: () {
-                  // answer_page.dartへ遷移
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const AnswerPage()),
-                  );
-                },
-                child: const Text('答えを見る', style: TextStyle(fontSize: 18)),
-              ),
-            ],
-          ),
+              onPressed: () {
+                // 問題画面へ遷移
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const QuizScreen()),
+                );
+              },
+              child: const Text('クイズを開始する', style: TextStyle(fontSize: 20, color: Colors.white)),
+            ),
+          ],
         ),
       ),
     );

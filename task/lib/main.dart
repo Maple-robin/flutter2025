@@ -1,21 +1,18 @@
 import 'package:flutter/material.dart';
-import 'quiz_screen.dart'; 
-import 'hundred_char_screen.dart';
 
 void main() {
-  runApp(const QuizKnockApp());
+  runApp(const MyApp());
 }
 
-class QuizKnockApp extends StatelessWidget {
-  const QuizKnockApp({super.key});
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'QK Quiz App',
+      title: 'QuizKnock Special',
       theme: ThemeData(
-        primarySwatch: Colors.red,
-        scaffoldBackgroundColor: Colors.black, // クールな黒背景
+        primarySwatch: Colors.blue,
       ),
       home: const HomeScreen(),
     );
@@ -27,55 +24,73 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // クイズモードのリスト定義
+    final List<Map<String, String>> quizModes = [
+      {'title': 'ウソ800クイズ', 'icon': '🤥'},
+      {'title': '闇鍋クイズ', 'icon': '🍲'},
+      {'title': '難易度マシマシクイズ', 'icon': '🍜'},
+      {'title': '悪魔合体クイズ', 'icon': '😈'},
+    ];
+
     return Scaffold(
-      body: Center(
+      backgroundColor: const Color(0xFFF5F5F5), // 薄いグレー
+      appBar: AppBar(
+        title: const Text(
+          'QuizKnock Special',
+          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+        ),
+        backgroundColor: const Color(0xFFE60012), // 正しいブランドカラーの赤
+        centerTitle: true,
+        elevation: 0,
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'QUIZKNOCK',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 40,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 4,
+              'プレイするモードを選択してください',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 20),
+            Expanded(
+              child: ListView.builder(
+                itemCount: quizModes.length,
+                itemBuilder: (context, index) {
+                  return _buildQuizModeCard(
+                    context,
+                    quizModes[index]['title']!,
+                    quizModes[index]['icon']!,
+                  );
+                },
               ),
             ),
-            const Text(
-              'MOCK',
-              style: TextStyle(color: Colors.red, fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 50),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 20),
-              ),
-              onPressed: () {
-                // 問題画面へ遷移
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const QuizScreen()),
-                );
-              },
-              child: const Text('クイズを開始する', style: TextStyle(fontSize: 20, color: Colors.white)),
-            ),
-            // main.dart の Column の中に追加してください
-ElevatedButton(
-  style: ElevatedButton.styleFrom(
-    backgroundColor: Colors.blueGrey, // モードごとに色を変えると分かりやすいです
-    padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 20),
-  ),
-  onPressed: () {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const HundredCharScreen()),
-    );
-  },
-  child: const Text('100文字クイズを開始', style: TextStyle(fontSize: 20, color: Colors.white)),
-),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildQuizModeCard(BuildContext context, String title, String icon) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 16),
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 20,
+          vertical: 10,
+        ),
+        leading: Text(icon, style: const TextStyle(fontSize: 30)),
+        title: Text(
+          title,
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+        ),
+        trailing: const Icon(Icons.arrow_forward_ios, color: Colors.grey),
+        onTap: () {
+          // TODO: 各モードの画面へ遷移する処理
+          print('$title を選択しました');
+        },
       ),
     );
   }

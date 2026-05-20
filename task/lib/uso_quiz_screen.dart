@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
@@ -61,13 +60,6 @@ class _UsoQuizScreenState extends State<UsoQuizScreen> {
         throw Exception('APIキーが未設定です。.envファイルを確認してください。');
       }
 
-      // モデルの指定（公式サンプルに合わせた Gemini 2.5 Flash）
-      final model = GenerativeModel(
-        model: 'gemini-2.5-flash',
-        apiKey: apiKey,
-        requestOptions: const RequestOptions(apiVersion: 'v1'),
-      );
-
       final prompt = '''
 あなたはQuizKnockの「ウソ8OOクイズ」を作成するAIです。
 以下のルールで1問作成し、必ずJSON形式のみを出力してください。
@@ -89,11 +81,9 @@ class _UsoQuizScreenState extends State<UsoQuizScreen> {
 答え：富士山
 ''';
 
-      final content = [Content.text(prompt)];
-      final response = await model.generateContent(content);
-      final responseText = response.text;
+      final responseText = await _generateQuizResponse(apiKey, prompt);
 
-      if (responseText == null || responseText.isEmpty) {
+      if (responseText.isEmpty) {
         throw Exception('AIからの返答が空でした。');
       }
 
@@ -122,10 +112,6 @@ class _UsoQuizScreenState extends State<UsoQuizScreen> {
       debugPrint('message: ${e.toString()}');
       debugPrint('stack: $st');
 
-      if (apiKey != null && apiKey.isNotEmpty && _isModelError(e)) {
-        await _debugListModels(apiKey);
-      }
-
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -138,45 +124,60 @@ class _UsoQuizScreenState extends State<UsoQuizScreen> {
     }
   }
 
-  bool _isModelError(Object error) {
-    final message = error.toString();
-    return message.contains('ListModels') ||
-        message.contains('not found') ||
-        message.contains('supported for generateContent');
-  }
+  Future<String> _generateQuizResponse(String apiKey, String prompt) async {
+    final modelCandidates = [
+      'gemini-2.5-flash',
+      'gemini-2.5-pro',
+      'gemini-2.0-flash',
+    ];
+    const maxRetry = 2;
 
-  Future<void> _debugListModels(String apiKey) async {
-    final versions = ['v1beta', 'v1'];
-    for (final version in versions) {
-      try {
-        final uri = Uri.https(
-          'generativelanguage.googleapis.com',
-          '/$version/models',
-          {'key': apiKey},
-        );
-        debugPrint('--- ListModels Request URI ---');
-        debugPrint(uri.toString());
+    for (final modelName in modelCandidates) {
+      for (var attempt = 1; attempt <= maxRetry; attempt++) {
+        try {
+          final model = GenerativeModel(
+            model: modelName,
+            apiKey: apiKey,
+            requestOptions: const RequestOptions(apiVersion: 'v1'),
+          );
 
-        final client = HttpClient();
-        final request = await client.getUrl(uri);
-        request.headers.set(HttpHeaders.acceptHeader, 'application/json');
-        final response = await request.close();
-        final body = await response.transform(utf8.decoder).join();
+          final response = await model.generateContent([Content.text(prompt)]);
+          final responseText = response.text;
 
-        debugPrint('--- ListModels Response Version --- $version');
-        debugPrint('--- ListModels Response Status --- ${response.statusCode}');
-        debugPrint(body);
-        client.close(force: true);
+          if (responseText == null || responseText.isEmpty) {
+            throw Exception('AIからの返答が空でした。');
+          }
 
-        if (response.statusCode == 200) {
-          return;
+          return responseText;
+        } catch (error, st) {
+          final message = error.toString();
+          debugPrint('--- Model Error ---');
+          debugPrint('model=$modelName attempt=$attempt');
+          debugPrint('message=$message');
+          debugPrint('stack=$st');
+
+          if (attempt < maxRetry && _isTemporaryServerError(message)) {
+            await Future.delayed(Duration(seconds: 2 * attempt));
+            continue;
+          }
+
+          if (!_isTemporaryServerError(message)) {
+            rethrow;
+          }
+
+          break;
         }
-      } catch (error, st) {
-        debugPrint('--- ListModels Debug Failed for $version ---');
-        debugPrint(error.toString());
-        debugPrint(st.toString());
       }
     }
+
+    throw Exception('全てのモデルでクイズ生成に失敗しました。あとでもう一度お試しください。');
+  }
+
+  bool _isTemporaryServerError(String message) {
+    return message.contains('503') ||
+        message.contains('UNAVAILABLE') ||
+        message.contains('high demand') ||
+        message.contains('currently experiencing high demand');
   }
 
   @override

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -37,11 +38,21 @@ class _UsoQuizScreenState extends State<UsoQuizScreen> {
   bool _isLoading = true;
   bool _isAnswered = false;
   final TextEditingController _controller = TextEditingController();
+  Timer? _cooldownTimer;
+  DateTime? _cooldownUntil;
+  int _cooldownRemaining = 0;
 
   @override
   void initState() {
     super.initState();
     _generateQuiz();
+  }
+
+  @override
+  void dispose() {
+    _cooldownTimer?.cancel();
+    _controller.dispose();
+    super.dispose();
   }
 
   Future<void> _generateQuiz() async {
@@ -111,17 +122,62 @@ class _UsoQuizScreenState extends State<UsoQuizScreen> {
       debugPrint('type: ${e.runtimeType}');
       debugPrint('message: ${e.toString()}');
       debugPrint('stack: $st');
+      final message = e.toString();
+      // クォータ関連のメッセージを検出してクールダウンを開始
+      if (message.toLowerCase().contains('quota') ||
+          message.toLowerCase().contains('you exceeded') ||
+          message.toLowerCase().contains('please retry in')) {
+        int waitSeconds = 60;
+        final retryMatch = RegExp(r'Please retry in ([0-9]+(?:\.[0-9]+)?)s', caseSensitive: false).firstMatch(message);
+        if (retryMatch != null) {
+          try {
+            final secs = double.parse(retryMatch.group(1)!);
+            waitSeconds = secs.ceil();
+          } catch (_) {}
+        }
+        _startCooldown(waitSeconds);
 
-      if (mounted) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('クイズ生成エラー: $e'),
-            backgroundColor: Colors.black87,
-          ),
-        );
+        if (mounted) {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('クイズ生成エラー: APIの利用上限に達しました。再試行まで $waitSeconds 秒お待ちください。'),
+              backgroundColor: Colors.black87,
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('クイズ生成エラー: $e'),
+              backgroundColor: Colors.black87,
+            ),
+          );
+        }
       }
     }
+  }
+
+  bool _isCooldownActive() {
+    return _cooldownUntil != null && DateTime.now().isBefore(_cooldownUntil!);
+  }
+
+  void _startCooldown(int seconds) {
+    _cooldownTimer?.cancel();
+    _cooldownUntil = DateTime.now().add(Duration(seconds: seconds));
+    _cooldownRemaining = seconds;
+    _cooldownTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      final rem = _cooldownUntil!.difference(DateTime.now()).inSeconds;
+      if (rem <= 0) {
+        t.cancel();
+        _cooldownUntil = null;
+        if (mounted) setState(() => _cooldownRemaining = 0);
+      } else {
+        if (mounted) setState(() => _cooldownRemaining = rem);
+      }
+    });
   }
 
   Future<String> _generateQuizResponse(String apiKey, String prompt) async {
@@ -191,7 +247,8 @@ class _UsoQuizScreenState extends State<UsoQuizScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _isLoading ? null : _generateQuiz,
+            onPressed: (_isLoading || _isCooldownActive()) ? null : _generateQuiz,
+            tooltip: _isCooldownActive() ? '再試行まで残り $_cooldownRemaining秒' : '更新',
           )
         ],
       ),
@@ -263,7 +320,7 @@ class _UsoQuizScreenState extends State<UsoQuizScreen> {
                       Text(quiz!.answer, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 40),
                       TextButton.icon(
-                        onPressed: _generateQuiz,
+                        onPressed: (_isLoading || _isCooldownActive()) ? null : _generateQuiz,
                         icon: const Icon(Icons.arrow_forward),
                         label: const Text('次の問題へ', style: TextStyle(fontSize: 18)),
                         style: TextButton.styleFrom(foregroundColor: const Color(0xFFE60012)),

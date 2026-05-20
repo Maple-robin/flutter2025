@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
-import 'uso_quiz_screen.dart'; 
+import 'uso_quiz_screen.dart';
+import 'yaminabe_quiz_screen.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 Future<void> main() async {
   // Flutterのエンジンが起動するのを待機（これがないとdotenvが失敗することがあります）
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // .envファイルを読み込み
   await dotenv.load(fileName: ".env");
-  
+
   runApp(const MyApp());
 }
 
@@ -40,7 +41,10 @@ class HomeScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('QuizKnock Special', style: TextStyle(color: Colors.white)),
+        title: const Text(
+          'QuizKnock Special',
+          style: TextStyle(color: Colors.white),
+        ),
         backgroundColor: const Color(0xFFE60012),
         centerTitle: true,
       ),
@@ -51,14 +55,30 @@ class HomeScreen extends StatelessWidget {
           final mode = quizModes[index];
           return Card(
             child: ListTile(
-              leading: Text(mode['icon']!, style: const TextStyle(fontSize: 30)),
-              title: Text(mode['title']!, style: const TextStyle(fontWeight: FontWeight.bold)),
+              leading: Text(
+                mode['icon']!,
+                style: const TextStyle(fontSize: 30),
+              ),
+              title: Text(
+                mode['title']!,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
               trailing: const Icon(Icons.arrow_forward_ios),
+              // main.dart の onTap 部分をこのように修正
               onTap: () {
                 if (mode['title'] == 'ウソ8OOクイズ') {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const UsoQuizScreen()),
+                    MaterialPageRoute(
+                      builder: (context) => const UsoQuizScreen(),
+                    ),
+                  );
+                } else if (mode['title'] == '闇鍋クイズ') {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const YaminabeQuizScreen(),
+                    ),
                   );
                 }
               },

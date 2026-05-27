@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'uso_quiz_screen.dart';
 import 'yaminabe_quiz_screen.dart';
+import 'mashimashi_quiz_screen.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 Future<void> main() async {
@@ -65,6 +66,7 @@ class HomeScreen extends StatelessWidget {
               ),
               trailing: const Icon(Icons.arrow_forward_ios),
               // main.dart の onTap 部分をこのように修正
+              // main.dart の onTap 部分をこのように修正
               onTap: () {
                 if (mode['title'] == 'ウソ8OOクイズ') {
                   Navigator.push(
@@ -78,6 +80,13 @@ class HomeScreen extends StatelessWidget {
                     context,
                     MaterialPageRoute(
                       builder: (context) => const YaminabeQuizScreen(),
+                    ),
+                  );
+                } else if (mode['title'] == '難易度マシマシクイズ') {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const MashimashiQuizScreen(),
                     ),
                   );
                 }

@@ -12,10 +12,7 @@ class CustomOption {
   CustomOption({required this.id, required this.label});
 
   factory CustomOption.fromJson(Map<String, dynamic> json) {
-    return CustomOption(
-      id: json['id'] ?? '',
-      label: json['label'] ?? '',
-    );
+    return CustomOption(id: json['id'] ?? '', label: json['label'] ?? '');
   }
 }
 
@@ -35,7 +32,9 @@ class MashimashiQuizData {
 
   factory MashimashiQuizData.fromJson(Map<String, dynamic> json) {
     final list = json['availableCustoms'] as List? ?? [];
-    final customs = list.map((i) => CustomOption.fromJson(i as Map<String, dynamic>)).toList();
+    final customs = list
+        .map((i) => CustomOption.fromJson(i as Map<String, dynamic>))
+        .toList();
 
     return MashimashiQuizData(
       genre: json['genre'] ?? '',
@@ -56,14 +55,14 @@ class MashimashiQuizScreen extends StatefulWidget {
 class _MashimashiQuizScreenState extends State<MashimashiQuizScreen> {
   MashimashiQuizData? quizData;
   String? displayedQuestion; // 画面に表示される（マシマシに変換された）問題文
-  
+
   bool _isLoading = true;
   bool _isTransforming = false; // マシマシ変換中のフラグ
   bool _isAnswered = false;
   bool _isCustomApplied = false; // カスタムが適用されたかどうか
 
   final TextEditingController _controller = TextEditingController();
-  
+
   // プレイヤーが選択したカスタムIDを管理するマップ
   final Map<String, bool> _selectedCustoms = {};
 
@@ -100,24 +99,32 @@ class _MashimashiQuizScreenState extends State<MashimashiQuizScreen> {
       }
 
       // プロンプトから「英語交じり」の文言を完全に排除
+      // 1. 最初のクイズ生成プロンプトの該当部分を修正
       final prompt = '''
 あなたはQuizKnockの「難易度マシマシクイズ」を作成するAIです。
-以下のルールに則って、一般的なクイズを1問作成し、指定されたJSON形式のみを出力してください。
+幅広い分野から一般的な知識を問うクイズを1問作成し、指定されたJSON形式のみを出力してください。
+
+【ジャンル選定のルール】
+毎回同じジャンル（歴史など）ばかりに偏るのを絶対に避けてください。
+[科学、自然、地理、スポーツ、文学・芸術、エンタメ、歴史、生活雑学、テクノロジー] などの幅広い分野から、毎回異なるジャンルを自由に選定してクイズを作成してください。
 
 【ルール】
-1. 一般的な知識を問うクイズ（歴史、科学、雑学、地理など）を1問作成してください。
+1. 選定したジャンルに関する一般的な知識を問うクイズを1問作成してください。
 2. その問題文の記述内容を分析し、回答者がトッピング（カスタム）を選んで難易度を上げられるような、**その問題文に存在する要素に応じたカスタム選択肢（3〜4個）**を動的に考えて提示してください。
 
 【カスタム選択肢の考え方ルール】
-- 問題文に具体的な数値（例：1603年、3776m）が含まれる場合 ➔ {"id": "suuji", "label": "数字抜き"} を必ず含めてください。
-- 問題文に具体的な国名や県名、都市名（例：静岡県、フランス）が含まれる場合 ➔ {"id": "chimei", "label": "地名抜き"} を必ず含めてください。
-- 問題文に人名（例：徳川家康、織田信長）が含まれる場合 ➔ {"id": "jinmei", "label": "人名抜き"} を必ず含めてください。
-- それ以外の汎用項目として、文章を難読化させる「{"id": "daku", "label": "濁点マシマシ"}」というカスタム選択肢を必ず配列に含めてください。
-- ※「英語交じり」や「カタカナ化」など、上記以外のトッピングは絶対に生成しないでください。
+- 問題文に具体的な数値（例：3776m、4年に1度、12個）が含まれる場合 ➔ {"id": "suuji", "label": "数字抜き"} を必ず含める。
+- 問題文に具体的な国名、都市名、川や山の名前が含まれる場合 ➔ {"id": "chimei", "label": "地名抜き"} を必ず含める。
+- 問題文に人物やグループ、キャラクターの名前が含まれる場合 ➔ {"id": "jinmei", "label": "人名抜き"} を必ず含める。
+- **【重要】** もし数字・地名・人名が問題文にない、または足りない場合は、代わりに以下の汎用項目から選んで、合計3〜4個の選択肢を維持してください。
+  - {"id": "daku", "label": "濁点マシマシ"} (※これは文章を難読化させるため、毎回必ず含めてください)
+  - {"id": "kana", "label": "ひらがな化"} (※漢字をすべてひらがなにして可読性を下げる)
+  - {"id": "kata", "label": "カタカナ化"} (※逆にすべてカタカナにして読みにくくする)
+- ※「英語交じり」など、上記以外のトッピングは絶対に生成しないでください。
 
 【出力形式】
 {
-  "genre": "クイズのジャンル（例: 山、歴史、世界遺産など短く）",
+  "genre": "選んだクイズのジャンル（例: 科学、スポーツ、地理 など短く）",
   "originalQuestion": "ベースとなる正しい問題文",
   "answer": "クイズの答え",
   "availableCustoms": [
@@ -127,18 +134,18 @@ class _MashimashiQuizScreenState extends State<MashimashiQuizScreen> {
 ''';
 
       final responseText = await _callGemini(apiKey, prompt);
-      
+
       String jsonString = responseText.trim();
       final jsonMatch = RegExp(r'\{.*\}', dotAll: true).stringMatch(jsonString);
       if (jsonMatch != null) jsonString = jsonMatch;
 
       final Map<String, dynamic> data = jsonDecode(jsonString);
-      
+
       if (mounted) {
         setState(() {
           quizData = MashimashiQuizData.fromJson(data);
           displayedQuestion = quizData!.originalQuestion;
-          
+
           for (var custom in quizData!.availableCustoms) {
             _selectedCustoms[custom.id] = false;
           }
@@ -170,22 +177,38 @@ class _MashimashiQuizScreenState extends State<MashimashiQuizScreen> {
       final bool hasSuuji = activeCustomIds.contains('suuji');
       final bool hasChimei = activeCustomIds.contains('chimei');
       final bool hasJinmei = activeCustomIds.contains('jinmei');
-      final bool hasDaku = activeCustomIds.contains('daku') || _selectedCustoms['daku'] == true;
+      final bool hasKana = activeCustomIds.contains('kana'); // ← これ
+      final bool hasKata = activeCustomIds.contains('kata'); // ← これ
+      final bool hasDaku =
+          activeCustomIds.contains('daku') || _selectedCustoms['daku'] == true;
 
       // AIには「消すべき対象の単語」だけを徹底して抽出させる
-      final prompt = '''
-あなたはクイズ問題文を解析するアシスタントです。
-提示された【元の問題文】を分析し、指定されたフォーマットのJSONのみを出力してください。
-文章の加工はプログラム側で行うため、ここでは削除対象となるキーワードの抽出のみを正確に行ってください。
-「transformedBaseText」には、元の問題文の文字や漢字を【一言一句変えずにそのまま】格納してください。ひらがな化は厳禁です。
+      final prompt =
+          '''
+あなたはクイズのテキスト加工アシスタントです。
+提供された問題文を分析・加工し、指定されたJSON形式のみを出力してください。
+※絶対に解説やMarkdownの装飾をせず、純粋なJSONのみを返してください。
 
 【元の問題文】
-${quizData!.originalQuestion}
+"${quizData!.originalQuestion}"
 
-【出力JSON形式】
+【現在のフラグ状態】
+- 数字抜きフラグ: $hasSuuji
+- 地名抜きフラグ: $hasChimei
+- 人名抜きフラグ: $hasJinmei
+- ひらがな化フラグ: $hasKana
+- カタカナ化フラグ: $hasKata
+
+【処理ルール】
+1. ひらがな化フラグが【true】の場合、問題文の漢字部分をできる限り「ひらがな」に変換した文章を「transformedBaseText」に格納してください。（例: 「1862年に発表した」→「1862ねんにはっぴょうした」）
+2. カタカナ化フラグが【true】の場合、問題文をできる限り「カタカナ」に変換した文章を「transformedBaseText」に格納してください。（例: 「1862年に発表した」→「1862ネンニハッピョウシタ」）
+3. どちらのフラグも【false】の場合は、元の問題文を一言一句変えずにそのまま「transformedBaseText」に格納してください。
+4. 地名抜き(true)、人名抜き(true)、数字抜き(true)に該当する具体的な【単語そのもの（例: フランス、ユーゴー、1862年）】を問題文から正確に抽出し、それらを「wordsToRemove」の配列にすべて格納してください。
+
+【出力形式】
 {
-  "wordsToRemove": ["問題文から消去すべき特定の具体的な数字、地名、国名、人名など（例: 1603年, 徳川家康, 江戸）"],
-  "transformedBaseText": "元の問題文と完全に同じ文字列（漢字のままで維持すること）"
+  "transformedBaseText": "指示に従って変形（または維持）した問題文のベース",
+  "wordsToRemove": ["削除対象となる具体的なキーワードのリスト"]
 }
 ''';
 
@@ -195,29 +218,50 @@ ${quizData!.originalQuestion}
       if (jsonMatch != null) jsonString = jsonMatch;
 
       final Map<String, dynamic> transformResult = jsonDecode(jsonString);
-      
-      // 正しい漢字を維持したベーステキストを取得
-      String resultText = transformResult['transformedBaseText'] ?? quizData!.originalQuestion;
-      
+
+      // AIがひらがな化、またはカタカナ化してくれたベーステキストを正しく受け取る
+      String resultText =
+          transformResult['transformedBaseText'] ?? quizData!.originalQuestion;
+
       // AIが生成したかもしれない変な後付け濁点コードをここで完全に消滅させる
       resultText = resultText.replaceAll(RegExp(r'[\u3099\u309A]'), '');
 
-      // 1. 【文字抜きの処理】指定キーワードを完全に抹殺して文字を詰め込む
-      final List<dynamic> wordsToRemove = transformResult['wordsToRemove'] ?? [];
+      // 1. 【文字抜きの処理】選ばれたチェックボックスの要素だけを確実に狙い撃ちして消す
+      final List<dynamic> wordsToRemove =
+          transformResult['wordsToRemove'] ?? [];
       for (var word in wordsToRemove) {
-        final String targetWord = word.toString().trim();
-        if (targetWord.isNotEmpty) {
-          if (hasChimei || hasJinmei || hasSuuji) {
-            resultText = resultText.replaceAll(targetWord, '');
+        String targetWord = word.toString().trim();
+        if (targetWord.isEmpty) continue;
+
+        // --- 【超重要】数字抜きの処理 ---
+        if (hasSuuji) {
+          // ターゲットの単語から「数字だけ」を抽出（例: 「1862年」→「1862」）
+          final onlyDigits = RegExp(r'[0-9０-９]+').stringMatch(targetWord) ?? '';
+          if (onlyDigits.isNotEmpty) {
+            resultText = resultText.replaceAll(onlyDigits, '');
           }
+          // 数字抜きのときは、この単語がアルファベットや漢字（人名など）だった場合に下の処理に流れて消されるのを防ぐ
+          continue;
+        }
+
+        // --- 地名抜きの処理（チェックが入っている時だけ実行） ---
+        if (hasChimei) {
+          // AIが抽出した地名リストに含まれる単語（例: フランス、中国など）をピンポイント消去
+          // ※人名まで巻き込まないように、AIのリストをそのまま鵜呑みにせずhasChimeiの時だけ動かす
+          resultText = resultText.replaceAll(targetWord, '');
+        }
+
+        // --- 人名抜きの処理（チェックが入っている時だけ実行） ---
+        if (hasJinmei) {
+          // AIが抽出した人名（例: ユーゴー、ジャン・バルジャンなど）をピンポイント消去
+          resultText = resultText.replaceAll(targetWord, '');
         }
       }
 
-      // バックアップ用の全角・半角数字の強制詰め処理
+      // バックアップ用の全角・半角数字の強制詰め処理（数字抜きがONのときだけ稼働）
       if (hasSuuji) {
         resultText = resultText.replaceAll(RegExp(r'[0-9０-９]'), '');
       }
-
       // 隙間のスペースや空白を完全にデリートして密着させる
       resultText = resultText.replaceAll(' ', '').replaceAll('　', '');
 
@@ -225,10 +269,26 @@ ${quizData!.originalQuestion}
       if (hasDaku) {
         // 安全に濁点文字へ置き換えるための変換テーブル
         final Map<String, String> dakuMap = {
-          'は': 'ば', 'ひ': 'び', 'ふ': 'ぶ', 'へ': 'べ', 'ほ': 'ぼ',
-          'か': 'が', 'き': 'ぎ', 'く': 'ぐ', 'け': 'げ', 'こ': 'ご',
-          'さ': 'ざ', 'し': 'じ', 'す': 'ず', 'せ': 'ぜ', 'そ': 'ぞ',
-          'た': 'だ', 'ち': 'ぢ', 'つ': 'づ', 'て': 'で', 'と': 'ど',
+          'は': 'ば',
+          'ひ': 'び',
+          'ふ': 'ぶ',
+          'へ': 'べ',
+          'ほ': 'ぼ',
+          'か': 'が',
+          'き': 'ぎ',
+          'く': 'ぐ',
+          'け': 'げ',
+          'こ': 'ご',
+          'さ': 'ざ',
+          'し': 'じ',
+          'す': 'ず',
+          'せ': 'ぜ',
+          'そ': 'ぞ',
+          'た': 'だ',
+          'ち': 'ぢ',
+          'つ': 'づ',
+          'て': 'で',
+          'と': 'ど',
           'う': 'ゔ',
         };
 
@@ -239,7 +299,7 @@ ${quizData!.originalQuestion}
           String char = resultText[i];
           // 変換マップにあり、かつ80%の確率で置換を行う
           if (dakuMap.containsKey(char) && random.nextDouble() < 0.8) {
-            buffer.write(dakuMap[char]); 
+            buffer.write(dakuMap[char]);
           } else {
             buffer.write(char);
           }
@@ -301,8 +361,13 @@ ${quizData!.originalQuestion}
       }
     }
 
-    final fallbackModel = GenerativeModel(model: 'gemini-1.5-flash', apiKey: apiKey);
-    final response = await fallbackModel.generateContent([Content.text(prompt)]);
+    final fallbackModel = GenerativeModel(
+      model: 'gemini-1.5-flash',
+      apiKey: apiKey,
+    );
+    final response = await fallbackModel.generateContent([
+      Content.text(prompt),
+    ]);
     return response.text ?? '';
   }
 
@@ -323,21 +388,31 @@ ${quizData!.originalQuestion}
   @override
   Widget build(BuildContext context) {
     // UIのリストを作る段階で「英語交じり」を確実に弾き出す防壁ロジック
-    final displayCustoms = quizData?.availableCustoms
-        .where((c) => c.id != 'english' && c.id != 'english_mix' && !c.label.contains('英語'))
-        .toList() ?? [];
+    final displayCustoms =
+        quizData?.availableCustoms
+            .where(
+              (c) =>
+                  c.id != 'english' &&
+                  c.id != 'english_mix' &&
+                  !c.label.contains('英語'),
+            )
+            .toList() ??
+        [];
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
       appBar: AppBar(
-        title: const Text('難易度マシマシクイズ', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const Text(
+          '難易度マシマシクイズ',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
         backgroundColor: const Color(0xFFE60012),
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _isLoading || _isTransforming ? null : _generateBaseQuiz,
-          )
+          ),
         ],
       ),
       body: _isLoading
@@ -347,14 +422,21 @@ ${quizData!.originalQuestion}
                 children: [
                   CircularProgressIndicator(color: Color(0xFFE60012)),
                   SizedBox(height: 20),
-                  Text('AIが特製スープと麺（問題）を準備中...', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+                  Text(
+                    'AIが特製スープと麺（問題）を準備中...',
+                    style: TextStyle(
+                      color: Colors.grey,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ],
               ),
             )
           : SingleChildScrollView(
               padding: const EdgeInsets.all(20),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start, // ← タイポ箇所を綺麗に修正しました
+                crossAxisAlignment:
+                    CrossAxisAlignment.start, // ← タイポ箇所を綺麗に修正しました
                 children: [
                   if (quizData != null) ...[
                     // ジャンル表示
@@ -362,7 +444,10 @@ ${quizData!.originalQuestion}
                       avatar: const Text('🏷️'),
                       label: Text(
                         'ジャンル: ${quizData!.genre}',
-                        style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
                       ),
                       backgroundColor: Colors.black87,
                     ),
@@ -376,23 +461,50 @@ ${quizData!.originalQuestion}
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(15),
-                          boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 4))],
-                          border: Border.all(color: Colors.deepOrange, width: 2.5),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Colors.black12,
+                              blurRadius: 8,
+                              offset: Offset(0, 4),
+                            ),
+                          ],
+                          border: Border.all(
+                            color: Colors.deepOrange,
+                            width: 2.5,
+                          ),
                         ),
                         child: _isTransforming
                             ? const Center(
                                 child: Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.deepOrange)),
+                                    SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.deepOrange,
+                                      ),
+                                    ),
                                     SizedBox(width: 15),
-                                    Text('トッピングをスープに混ぜています...', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.deepOrange)),
+                                    Text(
+                                      'トッピングをスープに混ぜています...',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.deepOrange,
+                                      ),
+                                    ),
                                   ],
                                 ),
                               )
                             : Text(
                                 displayedQuestion ?? '',
-                                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.deepOrange[900], height: 1.5),
+                                style: TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.deepOrange[900],
+                                  height: 1.5,
+                                ),
                               ),
                       ),
                       const SizedBox(height: 25),
@@ -403,25 +515,49 @@ ${quizData!.originalQuestion}
                       Container(
                         width: double.infinity,
                         padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(color: Colors.grey[800], borderRadius: BorderRadius.circular(12)),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[800],
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                         child: const Row(
                           children: [
                             Text('🔒', style: TextStyle(fontSize: 20)),
                             SizedBox(width: 10),
-                            Text('問題文はコール後に開示されます！', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                            Text(
+                              '問題文はコール後に開示されます！',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
                           ],
                         ),
                       ),
                       const SizedBox(height: 25),
-                      const Text('🍜 コール（マシマシカスタムを選択してください）', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black54)),
+                      const Text(
+                        '🍜 コール（マシマシカスタムを選択してください）',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black54,
+                        ),
+                      ),
                       const SizedBox(height: 10),
                       Card(
                         elevation: 2,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                         child: Column(
                           children: displayCustoms.map((custom) {
                             return CheckboxListTile(
-                              title: Text(custom.label, style: const TextStyle(fontWeight: FontWeight.bold)),
+                              title: Text(
+                                custom.label,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                               activeColor: Colors.deepOrange,
                               value: _selectedCustoms[custom.id] ?? false,
                               onChanged: (bool? value) {
@@ -440,10 +576,21 @@ ${quizData!.originalQuestion}
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.deepOrange,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
                           ),
-                          onPressed: _isTransforming ? null : _applyMashimashiCustom,
-                          child: const Text('これで注文する（マシマシにする）', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                          onPressed: _isTransforming
+                              ? null
+                              : _applyMashimashiCustom,
+                          child: const Text(
+                            'これで注文する（マシマシにする）',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ),
                       ),
                     ],
@@ -466,9 +613,18 @@ ${quizData!.originalQuestion}
                           width: double.infinity,
                           height: 50,
                           child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE60012)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFE60012),
+                            ),
                             onPressed: () => setState(() => _isAnswered = true),
-                            child: const Text('回答する', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                            child: const Text(
+                              '回答する',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ),
                         ),
 
@@ -482,18 +638,47 @@ ${quizData!.originalQuestion}
                           decoration: BoxDecoration(
                             color: Colors.red.withOpacity(0.05),
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.red.withOpacity(0.2)),
+                            border: Border.all(
+                              color: Colors.red.withOpacity(0.2),
+                            ),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text('【元の正しい問題文】', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 15)),
+                              const Text(
+                                '【元の正しい問題文】',
+                                style: TextStyle(
+                                  color: Colors.red,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                ),
+                              ),
                               const SizedBox(height: 6),
-                              Text(quizData!.originalQuestion, style: const TextStyle(fontSize: 17, height: 1.4)),
+                              Text(
+                                quizData!.originalQuestion,
+                                style: const TextStyle(
+                                  fontSize: 17,
+                                  height: 1.4,
+                                ),
+                              ),
                               const SizedBox(height: 20),
-                              const Text('【正解】', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 15)),
+                              const Text(
+                                '【正解】',
+                                style: TextStyle(
+                                  color: Colors.red,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                ),
+                              ),
                               const SizedBox(height: 6),
-                              Text(quizData!.answer, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFFE60012))),
+                              Text(
+                                quizData!.answer,
+                                style: const TextStyle(
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFFE60012),
+                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -502,16 +687,29 @@ ${quizData!.originalQuestion}
                           child: ElevatedButton.icon(
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.black87,
-                              padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 30,
+                                vertical: 15,
+                              ),
                             ),
                             onPressed: _generateBaseQuiz,
-                            icon: const Icon(Icons.arrow_forward, color: Colors.white),
-                            label: const Text('次のラーメン（問題）へ', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                            icon: const Icon(
+                              Icons.arrow_forward,
+                              color: Colors.white,
+                            ),
+                            label: const Text(
+                              '次のラーメン（問題）へ',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ),
                         ),
                       ],
                     ],
-                  ]
+                  ],
                 ],
               ),
             ),

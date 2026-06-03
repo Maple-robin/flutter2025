@@ -24,11 +24,16 @@ class YaminabeQuizData {
   final String yaminabeQuestion;
   final List<OriginalQuiz> originalQuizzes;
 
-  YaminabeQuizData({required this.yaminabeQuestion, required this.originalQuizzes});
+  YaminabeQuizData({
+    required this.yaminabeQuestion,
+    required this.originalQuizzes,
+  });
 
   factory YaminabeQuizData.fromJson(Map<String, dynamic> json) {
     final list = json['originalQuizzes'] as List? ?? [];
-    final quizList = list.map((i) => OriginalQuiz.fromJson(i as Map<String, dynamic>)).toList();
+    final quizList = list
+        .map((i) => OriginalQuiz.fromJson(i as Map<String, dynamic>))
+        .toList();
 
     return YaminabeQuizData(
       yaminabeQuestion: json['yaminabeQuestion'] ?? '',
@@ -54,8 +59,11 @@ class _YaminabeQuizScreenState extends State<YaminabeQuizScreen> {
   int _cooldownRemaining = 0;
 
   // 4つの入力欄のためのコントローラー
-  final List<TextEditingController> _controllers = List.generate(4, (_) => TextEditingController());
-  
+  final List<TextEditingController> _controllers = List.generate(
+    4,
+    (_) => TextEditingController(),
+  );
+
   // それぞれの正誤判定を保持するリスト
   List<bool> _isCorrectList = [false, false, false, false];
   int _score = 0;
@@ -160,7 +168,7 @@ class _YaminabeQuizScreenState extends State<YaminabeQuizScreen> {
       }
 
       final Map<String, dynamic> data = jsonDecode(jsonString);
-      
+
       if (mounted) {
         setState(() {
           quizData = YaminabeQuizData.fromJson(data);
@@ -173,9 +181,13 @@ class _YaminabeQuizScreenState extends State<YaminabeQuizScreen> {
 
       final message = e.toString();
       // クォータ超過を検出してクールダウンを開始
-      if (message.toLowerCase().contains('quota') || message.toLowerCase().contains('you exceeded')) {
+      if (message.toLowerCase().contains('quota') ||
+          message.toLowerCase().contains('you exceeded')) {
         // Google のエラーメッセージに "Please retry in XXs" が含まれる場合がある
-        final retryMatch = RegExp(r'Please retry in ([0-9]+(?:\.[0-9]+)?)s', caseSensitive: false).firstMatch(message);
+        final retryMatch = RegExp(
+          r'Please retry in ([0-9]+(?:\.[0-9]+)?)s',
+          caseSensitive: false,
+        ).firstMatch(message);
         int waitSeconds = 60; // デフォルト
         if (retryMatch != null) {
           try {
@@ -244,7 +256,9 @@ class _YaminabeQuizScreenState extends State<YaminabeQuizScreen> {
 
           // クォータやレートリミット関連の明示的検出
           final lower = message.toLowerCase();
-          if (lower.contains('quota') || lower.contains('rate limit') || lower.contains('you exceeded')) {
+          if (lower.contains('quota') ||
+              lower.contains('rate limit') ||
+              lower.contains('you exceeded')) {
             throw Exception('Quota exceeded or rate-limited by API: $message');
           }
 
@@ -265,7 +279,9 @@ class _YaminabeQuizScreenState extends State<YaminabeQuizScreen> {
       apiKey: apiKey,
       requestOptions: const RequestOptions(apiVersion: 'v1'),
     );
-    final response = await fallbackModel.generateContent([Content.text(prompt)]);
+    final response = await fallbackModel.generateContent([
+      Content.text(prompt),
+    ]);
     return response.text ?? '';
   }
 
@@ -277,20 +293,45 @@ class _YaminabeQuizScreenState extends State<YaminabeQuizScreen> {
   }
 
   // 回答ボタンを押したときの判定ロジック
+  // 回談ボタンを押したときの判定ロジック（順不同対応版）
   void _checkAnswers() {
     if (quizData == null) return;
+
+    // 1. AIが用意した4つの正しい答えをリスト化（トリム・小文字化して表記揺れを軽減）
+    final List<String> correctAnswers = quizData!.originalQuizzes
+        .map((q) => q.answer.trim().toLowerCase())
+        .toList();
+
+    // 2. ユーザーが4つの入力欄に書き込んだ答えをリスト化
+    final List<String> userAnswers = _controllers
+        .map((c) => c.text.trim().toLowerCase())
+        .toList();
 
     int currentScore = 0;
     List<bool> currentCorrectList = [false, false, false, false];
 
-    for (int i = 0; i < 4; i++) {
-      final userAnswer = _controllers[i].text.trim().toLowerCase();
-      final correctAnswer = quizData!.originalQuizzes[i].answer.trim().toLowerCase();
+    // まだ使われていない（マッチしていない）正解を管理する一時的なリスト
+    final List<String> remainingCorrectAnswers = List.from(correctAnswers);
 
-      // 部分一致や表記揺れをある程度許容（完全に一致か、正解が含まれている場合）
-      if (userAnswer.isNotEmpty && (correctAnswer.contains(userAnswer) || userAnswer.contains(correctAnswer))) {
+    // 3. 入力欄ごとに「いずれかの正解」とマッチするか検証
+    for (int i = 0; i < 4; i++) {
+      final userAnswer = userAnswers[i];
+      if (userAnswer.isEmpty) continue;
+
+      // まだマッチしていない正解リストの中から、部分一致または完全一致するものを探す
+      String? matchedAnswer;
+      for (final correct in remainingCorrectAnswers) {
+        if (correct.contains(userAnswer) || userAnswer.contains(correct)) {
+          matchedAnswer = correct;
+          break;
+        }
+      }
+
+      // 見つかった場合は正解とし、同じ正解が重複して判定されないようにリストから除外する
+      if (matchedAnswer != null) {
         currentCorrectList[i] = true;
         currentScore++;
+        remainingCorrectAnswers.remove(matchedAnswer);
       }
     }
 
@@ -306,15 +347,22 @@ class _YaminabeQuizScreenState extends State<YaminabeQuizScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
       appBar: AppBar(
-        title: const Text('闇鍋クイズ', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const Text(
+          '闇鍋クイズ',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
         backgroundColor: const Color(0xFFE60012),
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: (_isLoading || _isCooldownActive()) ? null : _generateYaminabeQuiz,
-            tooltip: _isCooldownActive() ? '再試行まで残り $_cooldownRemaining秒' : '更新',
-          )
+            onPressed: (_isLoading || _isCooldownActive())
+                ? null
+                : _generateYaminabeQuiz,
+            tooltip: _isCooldownActive()
+                ? '再試行まで残り $_cooldownRemaining秒'
+                : '更新',
+          ),
         ],
       ),
       body: _isLoading
@@ -324,7 +372,13 @@ class _YaminabeQuizScreenState extends State<YaminabeQuizScreen> {
                 children: [
                   CircularProgressIndicator(color: Color(0xFFE60012)),
                   SizedBox(height: 20),
-                  Text('AIが4つの問題を煮込み中...', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+                  Text(
+                    'AIが4つの問題を煮込み中...',
+                    style: TextStyle(
+                      color: Colors.grey,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ],
               ),
             )
@@ -340,8 +394,17 @@ class _YaminabeQuizScreenState extends State<YaminabeQuizScreen> {
                       decoration: BoxDecoration(
                         color: const Color(0xFF2C2C2C), // 闇鍋感を出すダークカラー
                         borderRadius: BorderRadius.circular(15),
-                        boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 4))],
-                        border: Border.all(color: const Color(0xFFE60012), width: 2),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Colors.black26,
+                            blurRadius: 8,
+                            offset: Offset(0, 4),
+                          ),
+                        ],
+                        border: Border.all(
+                          color: const Color(0xFFE60012),
+                          width: 2,
+                        ),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -350,13 +413,25 @@ class _YaminabeQuizScreenState extends State<YaminabeQuizScreen> {
                             children: [
                               Text('🍲', style: TextStyle(fontSize: 24)),
                               SizedBox(width: 8),
-                              Text('煮込まれた問題文', style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 16)),
+                              Text(
+                                '煮込まれた問題文',
+                                style: TextStyle(
+                                  color: Colors.amber,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
                             ],
                           ),
                           const SizedBox(height: 12),
                           Text(
                             quizData!.yaminabeQuestion,
-                            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white, height: 1.5),
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                              height: 1.5,
+                            ),
                           ),
                         ],
                       ),
@@ -371,13 +446,18 @@ class _YaminabeQuizScreenState extends State<YaminabeQuizScreen> {
                           children: [
                             CircleAvatar(
                               backgroundColor: _isAnswered
-                                  ? (_isCorrectList[index] ? Colors.green : Colors.red)
+                                  ? (_isCorrectList[index]
+                                        ? Colors.green
+                                        : Colors.red)
                                   : const Color(0xFFE60012),
                               child: Text(
-                                _isAnswered 
-                                    ? (_isCorrectList[index] ? '✓' : '✗') 
+                                _isAnswered
+                                    ? (_isCorrectList[index] ? '✓' : '✗')
                                     : '${index + 1}',
-                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -407,10 +487,19 @@ class _YaminabeQuizScreenState extends State<YaminabeQuizScreen> {
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFFE60012),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
                           ),
                           onPressed: _checkAnswers,
-                          child: const Text('具材をすべて当てる（回答する）', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                          child: const Text(
+                            '具材をすべて当てる（回答する）',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ),
                       ),
 
@@ -427,17 +516,28 @@ class _YaminabeQuizScreenState extends State<YaminabeQuizScreen> {
                         child: Center(
                           child: Text(
                             '結果: 4問中 $_score 問正解！ 🎉',
-                            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87),
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
                           ),
                         ),
                       ),
                       const SizedBox(height: 30),
                       const Align(
                         alignment: Alignment.centerLeft,
-                        child: Text('【元になった4つのクイズ】', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFFE60012))),
+                        child: Text(
+                          '【元になった4つのクイズ】',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFFE60012),
+                          ),
+                        ),
                       ),
                       const SizedBox(height: 15),
-                      
+
                       // 4つの元問題と答えのリスト表示
                       ...List.generate(4, (index) {
                         final original = quizData!.originalQuizzes[index];
@@ -449,17 +549,39 @@ class _YaminabeQuizScreenState extends State<YaminabeQuizScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('問題 ${index + 1}: ${original.question}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+                                Text(
+                                  '問題 ${index + 1}: ${original.question}',
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
                                 const SizedBox(height: 8),
                                 Row(
                                   children: [
-                                    const Text('正解: ', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
-                                    Text(original.answer, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.red)),
+                                    const Text(
+                                      '正解: ',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.red,
+                                      ),
+                                    ),
+                                    Text(
+                                      original.answer,
+                                      style: const TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.red,
+                                      ),
+                                    ),
                                     const SizedBox(width: 15),
                                     Text(
                                       '(あなたの回答: ${_controllers[index].text.isEmpty ? "未入力" : _controllers[index].text})',
-                                      style: TextStyle(color: Colors.grey[700], fontSize: 14),
-                                    )
+                                      style: TextStyle(
+                                        color: Colors.grey[700],
+                                        fontSize: 14,
+                                      ),
+                                    ),
                                   ],
                                 ),
                               ],
@@ -471,15 +593,25 @@ class _YaminabeQuizScreenState extends State<YaminabeQuizScreen> {
                       ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF2C2C2C),
-                          padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 30,
+                            vertical: 15,
+                          ),
                         ),
                         onPressed: _generateYaminabeQuiz,
                         icon: const Icon(Icons.refresh, color: Colors.white),
-                        label: const Text('次の闇鍋を煮込む（次の問題）', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                        label: const Text(
+                          '次の闇鍋を煮込む（次の問題）',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
                       const SizedBox(height: 40),
                     ],
-                  ]
+                  ],
                 ],
               ),
             ),

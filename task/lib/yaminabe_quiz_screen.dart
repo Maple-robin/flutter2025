@@ -96,9 +96,9 @@ class _YaminabeQuizScreenState extends State<YaminabeQuizScreen> {
       if (rem <= 0) {
         t.cancel();
         _cooldownUntil = null;
-        setState(() => _cooldownRemaining = 0);
+        if (mounted) setState(() => _cooldownRemaining = 0);
       } else {
-        setState(() => _cooldownRemaining = rem);
+        if (mounted) setState(() => _cooldownRemaining = rem);
       }
     });
   }
@@ -124,13 +124,20 @@ class _YaminabeQuizScreenState extends State<YaminabeQuizScreen> {
 
       final prompt = '''
 あなたはQuizKnockの「闇鍋クイズ」を作成するAIです。
-以下のルールに則って、最高に面白い問題を1問作成し、必ず指定されたJSON形式のみを出力してください。
+以下のルールに則って、問題を1問作成し、必ず指定されたJSON形式のみを出力してください。
 
 【ルール】
-1. まず、お互いに全く関係のない一般的なクイズを「4つ」用意してください（歴史、科学、芸能、スポーツ、雑学などジャンルはバラバラに）。
-2. その4つのクイズの問題文からキーワードや修飾語、名詞などを抽出し、それらを不自然に、かつ1つの滑稽な文章に煮込み合わせて「1つのウソのような闇鍋問題文」を作ってください。
-3. プレイヤーはその闇鍋問題文を読んで、元になった4つの独立したクイズの答えを推理します。
-4. JSON以外のテキスト（解説や挨拶）は一切出力しないでください。
+1. お互いに全く関係のない一般的なクイズを「4つ」用意してください（歴史、科学、芸能、スポーツ、雑学などジャンルはバラバラに）。
+2. 【厳守】闇鍋問題文を作るとき、混ぜてよいのは「各クイズの問題文に含まれる言葉・フレーズのみ」です。「答え」の単語は問題文には絶対に使用してはいけません。
+3. 各クイズの問題文から、キーワード・修飾語・名詞などを抽出し、それらを不自然にかつ滑稽に1つの文章へ煮込み合わせて「闇鍋問題文」を作ってください。
+4. 完成した闇鍋問題文を見て、答えのいずれかの単語が含まれていないか必ず確認し、含まれていた場合は作り直してください。
+5. プレイヤーはその闇鍋問題文を読んで、元になった4つのクイズの答えを推理します。答えが問題文に書いてあってはゲームとして成立しません。
+6. JSON以外のテキスト（解説や挨拶）は一切出力しないでください。
+
+【答えを問題文に入れてはいけない例（NG例）】
+- 答えが「チーター」→ 闇鍋問題文に「チーター」という単語を使ってはいけない
+- 答えが「米津玄師」→ 闇鍋問題文に「米津玄師」という単語を使ってはいけない
+- ただし、元の問題文に「シンガーソングライター」と書いてあれば「シンガーソングライター」は使ってよい
 
 【出力形式】
 {
@@ -143,13 +150,14 @@ class _YaminabeQuizScreenState extends State<YaminabeQuizScreen> {
   ]
 }
 
-【例】
+【良い例】
 元クイズ1: 「あかい」「まるい」「おおきい」「うまい」の頭文字から名付けられた、福岡県産のイチゴの品種は何でしょう？ (答: あまおう)
 元クイズ2: ファースト、メリーロード、桃太郎などの品種がある、真っ赤な見た目が鮮やかな夏野菜は何でしょう？ (答: トマト)
 元クイズ3: フランス語で「銀」という意味がある、ケーキなどに添えられる銀色をした粒状のお菓子は何でしょう？ (答: アラザン)
 元クイズ4: 豆乳ににがりなどを投入して作られる、大豆製品といえば何でしょう？ (答: 豆腐)
 
-闇鍋問題文: フランス語で「あかい銀」という意味がある、まるい豆乳ケーキにおおきい桃太郎などを投入して作られる、福岡県産の真っ赤な銀色が鮮やかな粒状の夏野菜製品といえば何でしょう？
+闇鍋問題文（良い例）: フランス語で「あかい銀」という意味がある、まるい豆乳ケーキにおおきい桃太郎などを投入して作られる、福岡県産の真っ赤な銀色が鮮やかな粒状の夏野菜製品といえば何でしょう？
+※「あまおう」「トマト」「アラザン」「豆腐」という答えの単語は問題文に一切登場していない点に注目
 ''';
 
       final responseText = await _generateQuizResponse(apiKey, prompt);
@@ -168,10 +176,15 @@ class _YaminabeQuizScreenState extends State<YaminabeQuizScreen> {
       }
 
       final Map<String, dynamic> data = jsonDecode(jsonString);
+      final parsedQuiz = YaminabeQuizData.fromJson(data);
+
+      if (parsedQuiz.originalQuizzes.length != 4) {
+        throw Exception('AIから4問分のクイズが返りませんでした。もう一度お試しください。');
+      }
 
       if (mounted) {
         setState(() {
-          quizData = YaminabeQuizData.fromJson(data);
+          quizData = parsedQuiz;
           _isLoading = false;
         });
       }
@@ -317,6 +330,7 @@ class _YaminabeQuizScreenState extends State<YaminabeQuizScreen> {
     for (int i = 0; i < 4; i++) {
       final userAnswer = userAnswers[i];
       if (userAnswer.isEmpty) continue;
+      if (userAnswer.length < 2) continue;
 
       // まだマッチしていない正解リストの中から、部分一致または完全一致するものを探す
       String? matchedAnswer;

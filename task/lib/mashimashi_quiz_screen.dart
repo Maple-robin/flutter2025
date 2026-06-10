@@ -154,7 +154,17 @@ class _MashimashiQuizScreenState extends State<MashimashiQuizScreen> {
       }
     } catch (e, st) {
       debugPrint('Base Quiz Generation Error: $e\n$st');
-      _showErrorSnackBar('クイズの初期生成に失敗しました: $e');
+
+      if (!mounted) return;
+
+      setState(() {
+        _isLoading = false;
+      });
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _showErrorSnackBar('クイズの初期生成に失敗しました: $e');
+      });
     }
   }
 

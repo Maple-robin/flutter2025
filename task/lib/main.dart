@@ -1,16 +1,14 @@
 import 'package:flutter/material.dart';
-import 'uso_quiz_screen.dart';
-import 'yaminabe_quiz_screen.dart';
-import 'mashimashi_quiz_screen.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
+import 'akuma_gattai_quiz_screen.dart';
+import 'mashimashi_quiz_screen.dart';
+import 'uso_quiz_screen.dart';
+import 'yaminabe_quiz_screen.dart';
+
 Future<void> main() async {
-  // Flutterのエンジンが起動するのを待機（これがないとdotenvが失敗することがあります）
   WidgetsFlutterBinding.ensureInitialized();
-
-  // .envファイルを読み込み
-  await dotenv.load(fileName: ".env");
-
+  await dotenv.load(fileName: '.env');
   runApp(const MyApp());
 }
 
@@ -20,9 +18,12 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      debugShowCheckedModeBanner: false, // デバッグラベルを非表示
+      debugShowCheckedModeBanner: false,
       title: 'QuizKnock Special',
-      theme: ThemeData(primarySwatch: Colors.red),
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFE60012)),
+        useMaterial3: true,
+      ),
       home: const HomeScreen(),
     );
   }
@@ -33,63 +34,62 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final List<Map<String, String>> quizModes = [
-      {'title': 'ウソ8OOクイズ', 'icon': '🤥'},
-      {'title': '闇鍋クイズ', 'icon': '🍲'},
-      {'title': '難易度マシマシクイズ', 'icon': '🍜'},
-      {'title': '悪魔合体クイズ', 'icon': '😈'},
+    final quizModes = [
+      _QuizMode(
+        title: 'ウソ800クイズ',
+        icon: Icons.change_circle,
+        builder: (_) => const UsoQuizScreen(),
+      ),
+      _QuizMode(
+        title: '闇鍋クイズ',
+        icon: Icons.soup_kitchen,
+        builder: (_) => const YaminabeQuizScreen(),
+      ),
+      _QuizMode(
+        title: '難易度マシマシクイズ',
+        icon: Icons.trending_up,
+        builder: (_) => const MashimashiQuizScreen(),
+      ),
+      _QuizMode(
+        title: '悪魔合体クイズ',
+        icon: Icons.auto_awesome,
+        builder: (_) => const AkumaGattaiQuizScreen(),
+      ),
     ];
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF5F5F5),
       appBar: AppBar(
         title: const Text(
           'QuizKnock Special',
-          style: TextStyle(color: Colors.white),
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         backgroundColor: const Color(0xFFE60012),
         centerTitle: true,
       ),
-      body: ListView.builder(
+      body: ListView.separated(
         padding: const EdgeInsets.all(16),
         itemCount: quizModes.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 8),
         itemBuilder: (context, index) {
           final mode = quizModes[index];
           return Card(
+            elevation: 1,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
             child: ListTile(
-              leading: Text(
-                mode['icon']!,
-                style: const TextStyle(fontSize: 30),
-              ),
+              leading: Icon(mode.icon, color: const Color(0xFFE60012)),
               title: Text(
-                mode['title']!,
+                mode.title,
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
-              trailing: const Icon(Icons.arrow_forward_ios),
-              // main.dart の onTap 部分をこのように修正
-              // main.dart の onTap 部分をこのように修正
+              trailing: const Icon(Icons.arrow_forward_ios, size: 18),
               onTap: () {
-                if (mode['title'] == 'ウソ8OOクイズ') {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const UsoQuizScreen(),
-                    ),
-                  );
-                } else if (mode['title'] == '闇鍋クイズ') {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const YaminabeQuizScreen(),
-                    ),
-                  );
-                } else if (mode['title'] == '難易度マシマシクイズ') {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const MashimashiQuizScreen(),
-                    ),
-                  );
-                }
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: mode.builder),
+                );
               },
             ),
           );
@@ -97,4 +97,16 @@ class HomeScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+class _QuizMode {
+  const _QuizMode({
+    required this.title,
+    required this.icon,
+    required this.builder,
+  });
+
+  final String title;
+  final IconData icon;
+  final WidgetBuilder builder;
 }

@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:task/services/generative_service.dart';
 
 // カスタム選択肢のデータを管理するクラス
 class CustomOption {
@@ -333,59 +333,7 @@ class _MashimashiQuizScreenState extends State<MashimashiQuizScreen> {
 
   // 複数モデル候補フォールバック通信ロジック
   Future<String> _callGemini(String apiKey, String prompt) async {
-    final modelCandidates = [
-      'gemini-2.5-flash',
-      'gemini-2.5-pro',
-      'gemini-2.0-flash',
-      'gemini-1.5-flash',
-    ];
-    const maxRetry = 2;
-
-    for (final modelName in modelCandidates) {
-      for (var attempt = 1; attempt <= maxRetry; attempt++) {
-        try {
-          final model = GenerativeModel(
-            model: modelName,
-            apiKey: apiKey,
-            requestOptions: const RequestOptions(apiVersion: 'v1'),
-          );
-
-          final response = await model.generateContent([Content.text(prompt)]);
-          final responseText = response.text;
-
-          if (responseText == null || responseText.isEmpty) {
-            throw Exception('AIからの返答が空でした。');
-          }
-
-          return responseText;
-        } catch (error) {
-          final message = error.toString();
-          debugPrint('Model Error: $modelName (Attempt $attempt) -> $message');
-
-          if (attempt < maxRetry && _isTemporaryServerError(message)) {
-            await Future.delayed(Duration(seconds: 2 * attempt));
-            continue;
-          }
-          break;
-        }
-      }
-    }
-
-    final fallbackModel = GenerativeModel(
-      model: 'gemini-1.5-flash',
-      apiKey: apiKey,
-    );
-    final response = await fallbackModel.generateContent([
-      Content.text(prompt),
-    ]);
-    return response.text ?? '';
-  }
-
-  bool _isTemporaryServerError(String message) {
-    return message.contains('503') ||
-        message.contains('UNAVAILABLE') ||
-        message.contains('high demand') ||
-        message.contains('currently experiencing high demand');
+    return await GenerativeService.generate(prompt);
   }
 
   void _showErrorSnackBar(String msg) {
@@ -646,10 +594,10 @@ class _MashimashiQuizScreenState extends State<MashimashiQuizScreen> {
                           width: double.infinity,
                           padding: const EdgeInsets.all(20),
                           decoration: BoxDecoration(
-                            color: Colors.red.withOpacity(0.05),
+                            color: const Color(0x0DFF0000),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                              color: Colors.red.withOpacity(0.2),
+                              color: const Color(0x33FF0000),
                             ),
                           ),
                           child: Column(

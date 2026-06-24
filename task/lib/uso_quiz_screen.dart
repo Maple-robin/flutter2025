@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:task/services/generative_service.dart';
 
 // クイズデータを管理するクラス
 class UsoQuizData {
@@ -181,59 +181,7 @@ class _UsoQuizScreenState extends State<UsoQuizScreen> {
   }
 
   Future<String> _generateQuizResponse(String apiKey, String prompt) async {
-    final modelCandidates = [
-      'gemini-2.5-flash',
-      'gemini-2.5-pro',
-      'gemini-2.0-flash',
-    ];
-    const maxRetry = 2;
-
-    for (final modelName in modelCandidates) {
-      for (var attempt = 1; attempt <= maxRetry; attempt++) {
-        try {
-          final model = GenerativeModel(
-            model: modelName,
-            apiKey: apiKey,
-            requestOptions: const RequestOptions(apiVersion: 'v1'),
-          );
-
-          final response = await model.generateContent([Content.text(prompt)]);
-          final responseText = response.text;
-
-          if (responseText == null || responseText.isEmpty) {
-            throw Exception('AIからの返答が空でした。');
-          }
-
-          return responseText;
-        } catch (error, st) {
-          final message = error.toString();
-          debugPrint('--- Model Error ---');
-          debugPrint('model=$modelName attempt=$attempt');
-          debugPrint('message=$message');
-          debugPrint('stack=$st');
-
-          if (attempt < maxRetry && _isTemporaryServerError(message)) {
-            await Future.delayed(Duration(seconds: 2 * attempt));
-            continue;
-          }
-
-          if (!_isTemporaryServerError(message)) {
-            rethrow;
-          }
-
-          break;
-        }
-      }
-    }
-
-    throw Exception('全てのモデルでクイズ生成に失敗しました。あとでもう一度お試しください。');
-  }
-
-  bool _isTemporaryServerError(String message) {
-    return message.contains('503') ||
-        message.contains('UNAVAILABLE') ||
-        message.contains('high demand') ||
-        message.contains('currently experiencing high demand');
+    return await GenerativeService.generate(prompt);
   }
 
   @override

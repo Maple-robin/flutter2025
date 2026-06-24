@@ -3,7 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:google_generative_ai/google_generative_ai.dart';
+import 'package:task/services/generative_service.dart';
 
 class AkumaGattaiQuizData {
   final String question;
@@ -212,47 +212,7 @@ class _AkumaGattaiQuizScreenState extends State<AkumaGattaiQuizScreen> {
   }
 
   Future<String> _generateQuizResponse(String apiKey, String prompt) async {
-    final modelCandidates = [
-      'gemini-2.5-flash',
-      'gemini-2.5-pro',
-      'gemini-2.0-flash',
-      'gemini-1.5-flash',
-    ];
-    const maxRetry = 2;
-
-    for (final modelName in modelCandidates) {
-      for (var attempt = 1; attempt <= maxRetry; attempt++) {
-        try {
-          final model = GenerativeModel(
-            model: modelName,
-            apiKey: apiKey,
-            requestOptions: const RequestOptions(apiVersion: 'v1'),
-          );
-          final response = await model.generateContent([Content.text(prompt)]);
-          final text = response.text;
-          if (text == null || text.trim().isEmpty) {
-            throw Exception('AIから空の応答が返りました。');
-          }
-          return text;
-        } catch (error) {
-          final message = error.toString();
-          debugPrint('model=$modelName attempt=$attempt error=$message');
-
-          if (_isQuotaError(message)) {
-            rethrow;
-          }
-
-          if (attempt < maxRetry && _isTemporaryServerError(message)) {
-            await Future.delayed(Duration(seconds: 2 * attempt));
-            continue;
-          }
-
-          break;
-        }
-      }
-    }
-
-    throw Exception('すべてのモデルでクイズ生成に失敗しました。');
+    return await GenerativeService.generate(prompt);
   }
 
   Map<String, dynamic> _parseJsonObject(String responseText) {
@@ -319,13 +279,6 @@ class _AkumaGattaiQuizScreenState extends State<AkumaGattaiQuizScreen> {
       }
     }
     return buffer.toString();
-  }
-
-  bool _isTemporaryServerError(String message) {
-    return message.contains('503') ||
-        message.contains('UNAVAILABLE') ||
-        message.contains('high demand') ||
-        message.contains('currently experiencing high demand');
   }
 
   bool _isQuotaError(String message) {

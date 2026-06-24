@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:task/services/generative_service.dart';
 
 // 元の個別のクイズデータを管理するクラス
 class OriginalQuiz {
@@ -236,73 +236,7 @@ class _YaminabeQuizScreenState extends State<YaminabeQuizScreen> {
 
   // 大澤さんが構築した頑強な複数モデルフォールバック通信ロジック
   Future<String> _generateQuizResponse(String apiKey, String prompt) async {
-    final modelCandidates = [
-      'gemini-2.5-flash',
-      'gemini-2.5-pro',
-      'gemini-2.0-flash',
-      'gemini-1.5-flash',
-    ];
-    const maxRetry = 2;
-
-    for (final modelName in modelCandidates) {
-      for (var attempt = 1; attempt <= maxRetry; attempt++) {
-        try {
-          final model = GenerativeModel(
-            model: modelName,
-            apiKey: apiKey,
-            requestOptions: const RequestOptions(apiVersion: 'v1'),
-          );
-
-          final response = await model.generateContent([Content.text(prompt)]);
-          final responseText = response.text;
-
-          if (responseText == null || responseText.isEmpty) {
-            throw Exception('AIからの返答が空でした。');
-          }
-
-          return responseText;
-        } catch (error) {
-          final message = error.toString();
-          debugPrint('--- Model Error ---');
-          debugPrint('model=$modelName attempt=$attempt');
-          debugPrint('message=$message');
-
-          // クォータやレートリミット関連の明示的検出
-          final lower = message.toLowerCase();
-          if (lower.contains('quota') ||
-              lower.contains('rate limit') ||
-              lower.contains('you exceeded')) {
-            throw Exception('Quota exceeded or rate-limited by API: $message');
-          }
-
-          if (attempt < maxRetry && _isTemporaryServerError(message)) {
-            await Future.delayed(Duration(seconds: 2 * attempt));
-            continue; // 同モデルをリトライ
-          }
-
-          // ここでは次のモデル候補へ移行
-          break;
-        }
-      }
-    }
-
-    // すべて全滅した場合の最終手段として1.5-flashを直接試みる
-    final fallbackModel = GenerativeModel(
-      model: 'gemini-1.5-flash',
-      apiKey: apiKey,
-      requestOptions: const RequestOptions(apiVersion: 'v1'),
-    );
-    final response = await fallbackModel.generateContent([
-      Content.text(prompt),
-    ]);
-    return response.text ?? '';
-  }
-
-  bool _isTemporaryServerError(String message) {
-    return message.contains('503') ||
-        message.contains('UNAVAILABLE') ||
-        message.contains('high demand') ||
-        message.contains('currently experiencing high demand');
+    return await GenerativeService.generate(prompt);
   }
 
   // 回答ボタンを押したときの判定ロジック

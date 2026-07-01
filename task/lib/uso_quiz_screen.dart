@@ -24,6 +24,14 @@ class UsoQuizData {
       answer: json['answer'] ?? '',
     );
   }
+
+  void validate() {
+    if (usoQuestion.trim().isEmpty ||
+        originalQuestion.trim().isEmpty ||
+        answer.trim().isEmpty) {
+      throw Exception('AIの応答に必要な項目が足りません。');
+    }
+  }
 }
 
 class UsoQuizScreen extends StatefulWidget {
@@ -102,18 +110,13 @@ class _UsoQuizScreenState extends State<UsoQuizScreen> {
       debugPrint('--- AI Response Raw ---');
       debugPrint(responseText);
 
-      // JSON部分を抽出するロジック（Markdownの枠 ```json ... ``` を除去）
-      String jsonString = responseText.trim();
-      final jsonMatch = RegExp(r'\{.*\}', dotAll: true).stringMatch(jsonString);
-      if (jsonMatch != null) {
-        jsonString = jsonMatch;
-      }
+      final Map<String, dynamic> data = GenerativeService.parseJsonObject(responseText);
+      final parsedQuiz = UsoQuizData.fromJson(data);
+      parsedQuiz.validate();
 
-      final Map<String, dynamic> data = jsonDecode(jsonString);
-      
       if (mounted) {
         setState(() {
-          quiz = UsoQuizData.fromJson(data);
+          quiz = parsedQuiz;
           _isLoading = false;
         });
       }

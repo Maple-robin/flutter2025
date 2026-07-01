@@ -40,6 +40,20 @@ class YaminabeQuizData {
       originalQuizzes: quizList,
     );
   }
+
+  void validate() {
+    if (yaminabeQuestion.trim().isEmpty) {
+      throw Exception('AIの応答に必要な項目が足りません。');
+    }
+    if (originalQuizzes.length != 4) {
+      throw Exception('AIから4問分のクイズが返りませんでした。');
+    }
+    for (final quiz in originalQuizzes) {
+      if (quiz.question.trim().isEmpty || quiz.answer.trim().isEmpty) {
+        throw Exception('AIの応答に必要な項目が足りません。');
+      }
+    }
+  }
 }
 
 class YaminabeQuizScreen extends StatefulWidget {
@@ -169,18 +183,9 @@ class _YaminabeQuizScreenState extends State<YaminabeQuizScreen> {
       debugPrint('--- AI Response Raw (Yaminabe) ---');
       debugPrint(responseText);
 
-      String jsonString = responseText.trim();
-      final jsonMatch = RegExp(r'\{.*\}', dotAll: true).stringMatch(jsonString);
-      if (jsonMatch != null) {
-        jsonString = jsonMatch;
-      }
-
-      final Map<String, dynamic> data = jsonDecode(jsonString);
+      final Map<String, dynamic> data = GenerativeService.parseJsonObject(responseText);
       final parsedQuiz = YaminabeQuizData.fromJson(data);
-
-      if (parsedQuiz.originalQuizzes.length != 4) {
-        throw Exception('AIから4問分のクイズが返りませんでした。もう一度お試しください。');
-      }
+      parsedQuiz.validate();
 
       if (mounted) {
         setState(() {
@@ -244,42 +249,22 @@ class _YaminabeQuizScreenState extends State<YaminabeQuizScreen> {
   void _checkAnswers() {
     if (quizData == null) return;
 
-    // 1. AIが用意した4つの正しい答えをリスト化（トリム・小文字化して表記揺れを軽減）
-    final List<String> correctAnswers = quizData!.originalQuizzes
-        .map((q) => q.answer.trim().toLowerCase())
-        .toList();
-
-    // 2. ユーザーが4つの入力欄に書き込んだ答えをリスト化
-    final List<String> userAnswers = _controllers
-        .map((c) => c.text.trim().toLowerCase())
-        .toList();
+    final Set<String> correctAnswers = quizData!.originalQuizzes
+        .map((q) => _normalizeAnswer(q.answer))
+        .toSet();
 
     int currentScore = 0;
-    List<bool> currentCorrectList = [false, false, false, false];
+    final List<bool> currentCorrectList = [false, false, false, false];
+    final Set<String> remainingCorrectAnswers = Set.from(correctAnswers);
 
-    // まだ使われていない（マッチしていない）正解を管理する一時的なリスト
-    final List<String> remainingCorrectAnswers = List.from(correctAnswers);
-
-    // 3. 入力欄ごとに「いずれかの正解」とマッチするか検証
     for (int i = 0; i < 4; i++) {
-      final userAnswer = userAnswers[i];
+      final userAnswer = _normalizeAnswer(_controllers[i].text);
       if (userAnswer.isEmpty) continue;
-      if (userAnswer.length < 2) continue;
 
-      // まだマッチしていない正解リストの中から、部分一致または完全一致するものを探す
-      String? matchedAnswer;
-      for (final correct in remainingCorrectAnswers) {
-        if (correct.contains(userAnswer) || userAnswer.contains(correct)) {
-          matchedAnswer = correct;
-          break;
-        }
-      }
-
-      // 見つかった場合は正解とし、同じ正解が重複して判定されないようにリストから除外する
-      if (matchedAnswer != null) {
+      if (remainingCorrectAnswers.contains(userAnswer)) {
         currentCorrectList[i] = true;
         currentScore++;
-        remainingCorrectAnswers.remove(matchedAnswer);
+        remainingCorrectAnswers.remove(userAnswer);
       }
     }
 
@@ -288,6 +273,13 @@ class _YaminabeQuizScreenState extends State<YaminabeQuizScreen> {
       _score = currentScore;
       _isAnswered = true;
     });
+  }
+
+  String _normalizeAnswer(String value) {
+    return value
+        .trim()
+        .toLowerCase()
+        .replaceAll(RegExp(r'[ 　]'), '');
   }
 
   @override

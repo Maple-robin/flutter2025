@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
@@ -67,6 +69,59 @@ class GenerativeService {
     // 最終手段で1.5-flashを直接試す
     final fallback = GenerativeModel(model: 'gemini-1.5-flash', apiKey: apiKey);
     final response = await fallback.generateContent([Content.text(prompt)]);
-    return response.text ?? '';
+    final fallbackText = response.text;
+
+    if (fallbackText == null || fallbackText.isEmpty) {
+      throw Exception('AIからの返答が空でした。');
+    }
+
+    return fallbackText;
+  }
+
+  static String extractJsonString(String responseText) {
+    final trimmed = responseText.trim();
+    final startIndex = trimmed.indexOf('{');
+    if (startIndex < 0) {
+      throw FormatException('JSON開始文字「{」が見つかりませんでした。', responseText);
+    }
+
+    int depth = 0;
+    bool inString = false;
+    bool escape = false;
+
+    for (var i = startIndex; i < trimmed.length; i++) {
+      final char = trimmed[i];
+      if (inString) {
+        if (escape) {
+          escape = false;
+        } else if (char == '\\') {
+          escape = true;
+        } else if (char == '"') {
+          inString = false;
+        }
+      } else {
+        if (char == '"') {
+          inString = true;
+        } else if (char == '{') {
+          depth++;
+        } else if (char == '}') {
+          depth--;
+          if (depth == 0) {
+            return trimmed.substring(startIndex, i + 1);
+          }
+        }
+      }
+    }
+
+    throw FormatException('JSONの終了文字が見つかりませんでした。', responseText);
+  }
+
+  static Map<String, dynamic> parseJsonObject(String responseText) {
+    final jsonString = extractJsonString(responseText);
+    final decoded = jsonDecode(jsonString);
+    if (decoded is! Map<String, dynamic>) {
+      throw const FormatException('JSONのルートがオブジェクトではありません。');
+    }
+    return decoded;
   }
 }

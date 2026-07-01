@@ -14,6 +14,8 @@ class CustomOption {
   factory CustomOption.fromJson(Map<String, dynamic> json) {
     return CustomOption(id: json['id'] ?? '', label: json['label'] ?? '');
   }
+
+  bool get isValid => id.trim().isNotEmpty && label.trim().isNotEmpty;
 }
 
 // 難易度マシマシクイズの初期データを管理するクラス
@@ -42,6 +44,20 @@ class MashimashiQuizData {
       answer: json['answer'] ?? '',
       availableCustoms: customs,
     );
+  }
+
+  void validate() {
+    if (genre.trim().isEmpty ||
+        originalQuestion.trim().isEmpty ||
+        answer.trim().isEmpty) {
+      throw Exception('AIの応答に必要な項目が足りません。');
+    }
+    if (availableCustoms.length < 3 || availableCustoms.length > 4) {
+      throw Exception('availableCustomsの数が不正です。');
+    }
+    if (availableCustoms.any((custom) => !custom.isValid)) {
+      throw Exception('availableCustomsに不正な項目があります。');
+    }
   }
 }
 
@@ -134,16 +150,13 @@ class _MashimashiQuizScreenState extends State<MashimashiQuizScreen> {
 ''';
 
       final responseText = await _callGemini(apiKey, prompt);
-
-      String jsonString = responseText.trim();
-      final jsonMatch = RegExp(r'\{.*\}', dotAll: true).stringMatch(jsonString);
-      if (jsonMatch != null) jsonString = jsonMatch;
-
-      final Map<String, dynamic> data = jsonDecode(jsonString);
+      final Map<String, dynamic> data = GenerativeService.parseJsonObject(responseText);
+      final parsedQuiz = MashimashiQuizData.fromJson(data);
+      parsedQuiz.validate();
 
       if (mounted) {
         setState(() {
-          quizData = MashimashiQuizData.fromJson(data);
+          quizData = parsedQuiz;
           displayedQuestion = quizData!.originalQuestion;
 
           for (var custom in quizData!.availableCustoms) {
@@ -227,7 +240,7 @@ class _MashimashiQuizScreenState extends State<MashimashiQuizScreen> {
       final jsonMatch = RegExp(r'\{.*\}', dotAll: true).stringMatch(jsonString);
       if (jsonMatch != null) jsonString = jsonMatch;
 
-      final Map<String, dynamic> transformResult = jsonDecode(jsonString);
+      final Map<String, dynamic> transformResult = GenerativeService.parseJsonObject(responseText);
 
       // AIがひらがな化、またはカタカナ化してくれたベーステキストを正しく受け取る
       String resultText =
